@@ -4,6 +4,7 @@ import (
 	"strings"
 	"encoding/csv"
 	"flag"
+	"time"
 	"fmt"
 	"os"
 )
@@ -14,14 +15,17 @@ type problem struct {
 }
 
 func main() {
-	csvPath := "problems.csv"
-	lines := parseCsv(&csvPath)
+	defaultCsvPath := "problems.csv"
+	defaultTimeLimit := 30
+	lines, limit := parseFlags(&defaultCsvPath, &defaultTimeLimit)
+	timer := time.NewTimer(time.Duration(limit) * time.Second)
 	problems := parseLines(lines)
-	askQuestions(&problems)
+	askQuestions(&problems, timer, &limit)
 }
 
-func parseCsv(filepath *string) [][]string {
-	csvFilename := flag.String("csv", *filepath, "A csv file with questions and answers")
+func parseFlags(defaultPath *string, defaultTime *int) ([][]string, int) {
+	csvFilename := flag.String("csv", *defaultPath, "A csv file with questions and answers")
+	limit := flag.Int("limit", *defaultTime, "Time limit for the quiz")
 	flag.Parse()
 	file, err := os.Open(*csvFilename)
 	if err != nil {
@@ -32,20 +36,30 @@ func parseCsv(filepath *string) [][]string {
 	if err != nil {
 		exit("Failed the parse the csv file")
 	}
-	return lines
+	return lines, *limit
 }
 
-func askQuestions(problems *[]problem) {
+func askQuestions(problems *[]problem, timer *time.Timer, limit *int) {
 	counter := 0
-	for i, prob := range *problems {
-		fmt.Printf("Problem #%d: %s = \n", i+1, prob.question)
-		var answer string
-		fmt.Scanf("%s\n", &answer)
-		if answer == prob.answer {
-			counter++
+	problemLoop: for i, prob := range *problems {
+		fmt.Printf("Problem #%d: %s = ", i+1, prob.question)
+		ansCh := make(chan string)
+		go func() {
+			var answer string
+			fmt.Scanf("%s\n", &answer)
+			ansCh <- answer
+		}()
+		select {
+			case <-(*timer).C:
+				fmt.Printf("(Your %d secs are up!)\n", *limit)
+				break problemLoop
+			case answer := <-ansCh:
+				if answer == prob.answer {
+					counter++
+				}
 		}
 	}
-	fmt.Printf("You scored %d out of %d problems correctly\n", counter, len(*problems))
+	fmt.Printf("You answered %d out of %d problems correctly\n", counter, len(*problems))
 }
 
 func parseLines(lines [][]string) []problem {
