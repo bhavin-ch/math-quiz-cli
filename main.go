@@ -14,7 +14,14 @@ type problem struct {
 }
 
 func main() {
-	csvFilename := flag.String("csv", "problems.csv", "A csv file with questions and answers")
+	csvPath := "problems.csv"
+	lines := parseCsv(&csvPath)
+	problems := parseLines(lines)
+	askQuestions(&problems)
+}
+
+func parseCsv(filepath *string) [][]string {
+	csvFilename := flag.String("csv", *filepath, "A csv file with questions and answers")
 	flag.Parse()
 	file, err := os.Open(*csvFilename)
 	if err != nil {
@@ -25,9 +32,12 @@ func main() {
 	if err != nil {
 		exit("Failed the parse the csv file")
 	}
-	problems := parseLines(lines)
+	return lines
+}
+
+func askQuestions(problems *[]problem) {
 	counter := 0
-	for i, prob := range problems {
+	for i, prob := range *problems {
 		fmt.Printf("Problem #%d: %s = \n", i+1, prob.question)
 		var answer string
 		fmt.Scanf("%s\n", &answer)
@@ -35,7 +45,7 @@ func main() {
 			counter++
 		}
 	}
-	fmt.Printf("You scored %d out of %d problems correctly\n", counter, len(problems))
+	fmt.Printf("You scored %d out of %d problems correctly\n", counter, len(*problems))
 }
 
 func parseLines(lines [][]string) []problem {
